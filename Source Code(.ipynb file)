@@ -1,0 +1,137 @@
+            ===================Source Code==========================
+
+# for any bare mode(plot the dats) error detection.. 
+  import warnings
+  warnings.filterwarnings("ignore", message=".*missing ScriptRunContext.*")
+
+
+# as mentioned packages in requirements.txt. Check it out for further..
+  import pandas as pd
+  from surprise import SVD, Dataset, Reader
+  from surprise.model_selection import cross_validate
+  
+  print(" All libraries imported successfully!")
+
+# Here I organised the Data from CSV -> Organised Data by using Pandas Dataframe
+
+  import pandas as pd
+  ratings = pd.read_csv(
+      'Data/ml-100k/u.data',
+      sep='\t',
+      names=['user_id', 'item_id', 'rating', 'timestamp']
+  )
+  ratings.head()
+
+
+# By using of describe we can get mean, std, min, max etc. of the ratings.
+  
+  ratings.describe()   
+
+#for plotting the bar chart
+
+  import matplotlib.pyplot as plt             
+  
+  plt.figure(figsize=(6,4))
+  ratings['rating'].value_counts().sort_index().plot(kind='bar')
+  plt.title("Distribution of Ratings")
+  plt.xlabel("Rating")
+  plt.ylabel("Count")
+  plt.show()
+
+ # Plot that shows the avg of ratings who get into users
+
+  avg_user_rating = ratings.groupby('user_id')['rating'].mean()             
+  avg_user_rating.hist(bins=30, figsize=(6,4))
+  plt.title("Average Rating per User")
+  plt.xlabel("Average Rating")
+  plt.ylabel("Number of Users")
+  plt.show()
+
+
+# modeling stage of your recommender system
+
+  from surprise import SVD, Dataset, Reader
+  from surprise.model_selection import cross_validate
+  
+  reader = Reader(rating_scale=(1, 5))
+  data = Dataset.load_from_df(ratings[['user_id', 'item_id', 'rating']], reader)
+
+
+# training and evaluating your recommender system.
+#SVD stands for Singular Value Decomposition 
+#it’s a matrix factorization-based collaborative filtering model, which is very common for recommender systems.
+#cross validate - evaluates the model performance
+  algo = SVD()
+  cross_validate(algo, data, measures=['RMSE', 'MAE'], cv=5, verbose=True)
+
+#Predicting on the full dataset
+  trainset = data.build_full_trainset()
+  algo.fit(trainset)
+  
+  pred = algo.predict(uid=1, iid=50)  #uid-user_id , iid-item_id
+  print(f"Predicted rating for user 1 on movie 50: {pred.est:.2f}")
+
+
+# Code for Recommending movies for user 1..
+  all_items = ratings['item_id'].unique()  # Get the list of all item_ids (movie IDs) in the dataset
+  rated_items = ratings[ratings['user_id'] == 1]['item_id'].values  # Get the list of movies that user 1 has already rated
+  unrated_items = [iid for iid in all_items if iid not in rated_items] # Create a list of movies user 1 has NOT rated yet
+  predictions = []
+  for iid in unrated_items:
+      pred = algo.predict(uid=1, iid=iid)
+      predictions.append((iid, pred.est))  # Predict ratings for all unrated movies
+  top_10 = sorted(predictions, key=lambda x: x[1], reverse=True)[:10]  # Sort predictions by estimated rating, descending
+  print("Top 10 recommended movies for user 1:")
+  for rank, (iid, rating) in enumerate(top_10, start=1):
+      print(f"{rank}. Movie ID: {iid} | Predicted Rating: {rating:.2f}")
+
+# By now , the model is predicting well..
+"""
+    Recommend top-N movies for a given user using a trained Surprise model.
+
+    Parameters:
+        algo: trained Surprise model
+        ratings_df: pandas DataFrame with columns [user_id, item_id, rating, timestamp]
+        user_id: int, user ID for whom to recommend
+        n: int, number of recommendations to return
+
+    Returns:
+        List of tuples: (item_id, estimated_rating), sorted by rating descending
+    """
+
+  def recommend_top_n(algo, ratings_df, user_id, n=10):
+      
+      # All unique movies in dataset
+      all_items = ratings_df['item_id'].unique()
+  
+      # Movies already rated by this user
+      rated_items = ratings_df[ratings_df['user_id'] == user_id]['item_id'].values
+  
+      # Movies NOT yet rated
+      unrated_items = [iid for iid in all_items if iid not in rated_items]
+  
+      # Predict ratings for all unrated movies
+      predictions = []
+      for iid in unrated_items:
+          pred = algo.predict(uid=user_id, iid=iid)
+          predictions.append((iid, pred.est))
+  
+      # Sort by predicted rating, descending
+      top_n = sorted(predictions, key=lambda x: x[1], reverse=True)[:n]
+  
+      return top_n
+
+# hyperparameter tuning with grid search
+  from surprise.model_selection import GridSearchCV
+  param_grid = {'n_factors': [50, 100], 'lr_all': [0.005, 0.01], 'reg_all': [0.02, 0.1]}
+  gs = GridSearchCV(SVD, param_grid, measures=['rmse'], cv=3)
+  gs.fit(data)
+  
+  print(gs.best_score['rmse'])
+  print(gs.best_params['rmse'])
+
+
+
+      
+      
+      

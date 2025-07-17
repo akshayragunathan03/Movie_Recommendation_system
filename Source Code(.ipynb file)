@@ -1,5 +1,5 @@
             ===================Source Code==========================
-
+pip install Requirements ..
 # for any bare mode(plot the dats) error detection.. 
   import warnings
   warnings.filterwarnings("ignore", message=".*missing ScriptRunContext.*")
